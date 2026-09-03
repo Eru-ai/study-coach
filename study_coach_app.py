@@ -1,6 +1,7 @@
 """
 Study Coach Agent — full loop with feedback pause.
   PLAN -> QUIZ -> [answer] -> JUDGE -> DECIDE -> loop -> REPORT
+v4: answer-only mode (for maths — work on paper, type just the final answer)
 Run with: streamlit run study_coach_app.py
 """
 
@@ -38,6 +39,7 @@ def init_state():
         "subject": "",
         "topic": "",
         "level": "",
+        "answer_only": False,
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -62,20 +64,47 @@ Example: ["Subtopic one", "Subtopic two", "Subtopic three", "Subtopic four"]"""
 
 
 def make_question(subtopic):
+    if st.session_state.answer_only:
+        style = (
+            "Write ONE question that has a clear, specific FINAL ANSWER "
+            "(for example a number, an expression, or a short result). "
+            "The student will work it out on paper and type ONLY their final answer, "
+            "so make sure the question can be solved to one definite answer. "
+            "Do not ask them to explain their reasoning."
+        )
+    else:
+        style = (
+            "Write ONE question testing whether the student truly understands this subtopic — "
+            "requiring explanation/reasoning, not a one-word answer."
+        )
     prompt = f"""You are an experienced NCEA teacher in New Zealand.
 Subject: {st.session_state.subject}
 Overall topic: {st.session_state.topic}
 Level: {st.session_state.level}
 Subtopic to test: {subtopic}
 
-Write ONE question testing whether the student truly understands this subtopic —
-requiring explanation/reasoning, not a one-word answer.
+{style}
 Respond with JUST the question."""
     return model.generate_content(prompt).text.strip()
 
 
 def judge_answer(subtopic, question, answer):
-    prompt = f"""You are an experienced NCEA teacher marking a student's answer.
+    if st.session_state.answer_only:
+        prompt = f"""You are an experienced NCEA teacher marking a student's FINAL ANSWER.
+Subtopic: {subtopic}
+Question: {question}
+Student's final answer: {answer}
+
+The student worked the problem out on paper and typed only their final answer.
+Judge whether their FINAL ANSWER is correct. Accept equivalent forms and sensible rounding.
+Respond with ONLY JSON, no markdown:
+{{
+  "verdict": "solid" or "shaky",
+  "feedback": "2-3 sentences. If correct, confirm it. If wrong, give the correct answer and one hint about the likely mistake. Plain text maths only, no LaTeX."
+}}
+Use "solid" only if the final answer is correct."""
+    else:
+        prompt = f"""You are an experienced NCEA teacher marking a student's answer.
 Subtopic: {subtopic}
 Question: {question}
 Student's answer: {answer}
@@ -130,6 +159,10 @@ if not st.session_state.plan:
         topic = st.text_input("Topic", placeholder="e.g. Momentum")
     level = st.select_slider("Difficulty", ["Easy", "Medium", "Hard", "Excellence-level"], value="Medium")
 
+    answer_only = st.checkbox(
+        "⚡ Answer-only mode — best for maths. Work it out on paper, type just the final answer."
+    )
+
     if st.button("🚀 Start session", type="primary", use_container_width=True):
         if not subject.strip() or not topic.strip():
             st.warning("Fill in both subject and topic.")
@@ -139,6 +172,7 @@ if not st.session_state.plan:
                     st.session_state.subject = subject
                     st.session_state.topic = topic
                     st.session_state.level = level
+                    st.session_state.answer_only = answer_only
                     st.session_state.plan = make_plan(subject, topic, level)
                     st.session_state.question = make_question(st.session_state.plan[0])
                     st.rerun()
@@ -187,11 +221,17 @@ else:
                 st.rerun()
 
         else:
-            answer = st.text_area(
-                "Your answer",
-                height=150,
-                key=f"ans_{st.session_state.current_index}_{st.session_state.attempts_on_current}",
-            )
+            if st.session_state.answer_only:
+                answer = st.text_input(
+                    "Your final answer (work it out on paper, then type the answer)",
+                    key=f"ans_{st.session_state.current_index}_{st.session_state.attempts_on_current}",
+                )
+            else:
+                answer = st.text_area(
+                    "Your answer",
+                    height=150,
+                    key=f"ans_{st.session_state.current_index}_{st.session_state.attempts_on_current}",
+                )
             if st.button("Submit answer", type="primary", use_container_width=True):
                 if not answer.strip():
                     st.warning("Write an answer first.")
@@ -230,7 +270,7 @@ else:
                         else:
                             st.session_state.pending_feedback = {
                                 "verdict": "shaky", "text": result["feedback"],
-                                "note": "Have another go — try to fill the gaps above.",
+                                "note": "Have another go — check your working and try again.",
                                 "advance": False,
                             }
                             st.rerun()
