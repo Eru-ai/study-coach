@@ -1,7 +1,7 @@
 """
 Study Coach Agent — full loop with feedback pause.
   PLAN -> QUIZ -> [answer] -> JUDGE -> DECIDE -> loop -> REPORT
-v4: answer-only mode (for maths — work on paper, type just the final answer)
+v5: how-to box + progress journey for the revision plan
 Run with: streamlit run study_coach_app.py
 """
 
@@ -16,6 +16,27 @@ MODEL_NAME = "gemini-2.5-flash-lite"
 st.set_page_config(page_title="Study Coach", page_icon="🎓", layout="centered")
 st.title("🎓 Study Coach")
 st.caption("Give it a topic. It plans your revision, quizzes you, and adapts to what you're weak on.")
+
+with st.expander("ℹ️ How to use"):
+    st.markdown(
+        """
+**What this does:** Type any subject and topic. Study Coach builds a short revision
+plan, then quizzes you one subtopic at a time — and shows what you've nailed and what
+needs more work.
+
+**Steps:**
+1. Enter a **subject** (e.g. NCEA Level 2 Physics) and a **topic** (e.g. Momentum).
+2. Pick a **difficulty**.
+3. Tick **Answer-only mode** if it's maths — work on paper, type just your final answer.
+4. Hit **Start session** and work through the questions.
+5. You get **2 tries** per question, then a summary of your strong and weak areas.
+
+**Tip:** Be honest with your answers — it can only find your weak spots if you really try.
+
+**Remember:** AI can make mistakes. Use this to guide your revision, not as the final
+word — check anything important with your teacher.
+        """
+    )
 
 load_dotenv()
 api_key = os.getenv("GEMINI_API_KEY")
@@ -138,6 +159,24 @@ def make_report():
     return "\n".join(lines)
 
 
+def render_journey():
+    """Draw the revision plan as a progress journey."""
+    total = len(st.session_state.plan)
+    if st.session_state.finished:
+        st.progress(1.0, text="Complete! 🎉")
+    else:
+        step_now = st.session_state.current_index + 1
+        st.progress(st.session_state.current_index / total, text=f"Step {step_now} of {total}")
+
+    for i, sub in enumerate(st.session_state.plan):
+        if i < st.session_state.current_index:
+            st.markdown(f":green[✅ **{i+1}.** {sub}]")
+        elif i == st.session_state.current_index and not st.session_state.finished:
+            st.markdown(f"🎯 **{i+1}. {sub}** &nbsp;:blue[← you're here]")
+        else:
+            st.markdown(f":grey[⚪ **{i+1}.** {sub}]")
+
+
 def advance():
     st.session_state.current_index += 1
     st.session_state.attempts_on_current = 0
@@ -181,14 +220,8 @@ if not st.session_state.plan:
 
 # ========== UI: SESSION ==========
 else:
-    st.subheader("📋 Revision plan")
-    for i, sub in enumerate(st.session_state.plan):
-        if i < st.session_state.current_index:
-            st.markdown(f"✅ **{i+1}.** {sub}")
-        elif i == st.session_state.current_index and not st.session_state.finished:
-            st.markdown(f"👉 **{i+1}.** {sub}")
-        else:
-            st.markdown(f"　 **{i+1}.** {sub}")
+    st.subheader("📋 Your revision journey")
+    render_journey()
 
     st.divider()
 
