@@ -1,7 +1,7 @@
 """
 Study Coach Agent — full loop with feedback pause.
   PLAN -> QUIZ -> [answer] -> JUDGE -> DECIDE -> loop -> REPORT
-v9: plain-text maths in questions (no LaTeX) + robust past-paper reader + target grade + level badge
+v10: strip source citations from questions + feedback speaks to "you"
 Run with: streamlit run study_coach_app.py
 """
 
@@ -160,6 +160,9 @@ FORMATTING: Write ALL maths in plain text — NO LaTeX and no backslash commands
 Use "/" for fractions and "^" for powers, plus Unicode where helpful (superscripts, sqrt, pi, times).
 For example write  (2x-1)/(4x^2-1)  as plain text, never as a LaTeX frac command.
 
+CLEAN QUESTION: Do NOT copy any source citations, references, URLs, web links, or
+"Source: ..." lines from the past paper. Give only the actual question itself.
+
 Respond with ONLY JSON, no markdown, no backticks:
 {{"question": "the full question text", "level": "Achieved" or "Merit" or "Excellence"}}
 "level" is the NCEA grade level this question targets (usually the grade they're aiming for)."""
@@ -181,7 +184,7 @@ Judge whether their FINAL ANSWER is correct. Accept equivalent forms and sensibl
 Respond with ONLY JSON, no markdown:
 {{
   "verdict": "solid" or "shaky",
-  "feedback": "2-3 sentences. If correct, confirm it. If wrong, give the correct answer and one hint about the likely mistake. Plain text maths only, no LaTeX."
+  "feedback": "2-3 sentences, spoken directly TO the student using \"you\" (never \"the student\" or \"they\"). If correct, confirm it. If wrong, give the correct answer and one hint about the likely mistake. Plain text maths only, no LaTeX."
 }}
 Use "solid" only if the final answer is correct."""
     else:
@@ -194,7 +197,7 @@ Assess whether they understand this well enough to move on.
 Respond with ONLY JSON, no markdown:
 {{
   "verdict": "solid" or "shaky",
-  "feedback": "2-3 sentences: what's right, what's missing. Plain text maths only, no LaTeX."
+  "feedback": "2-3 sentences, spoken directly TO the student using \"you\" (never \"the student\" or \"they\"): what you got right, what's missing. Plain text maths only, no LaTeX."
 }}
 Use "solid" only if the answer shows real understanding."""
     raw = model.generate_content(prompt).text.strip()
